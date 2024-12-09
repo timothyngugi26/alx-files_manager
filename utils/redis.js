@@ -1,72 +1,46 @@
-import redis from 'redis';
+import Redis from 'ioredis';
 
 class RedisClient {
-  constructor() {
-    this.client = redis.createClient({
-      url: process.env.REDIS_URL || 'redis://127.0.0.1:6379'
+  constructor(options = {}) {
+    const defaultOptions = {
+      host: 'localhost',
+      port: 6379,
+      db: 0
+    };
+    
+    this.client = new Redis({
+      ...defaultOptions,
+      ...options
     });
 
-    // Log any Redis client errors
     this.client.on('error', (err) => {
       console.error('Redis Client Error:', err);
     });
-
-    // Connect the client
-    this.client.connect();
   }
 
-  /**
-   * Check if the Redis connection is alive
-   * @returns {boolean} Connection status
-   */
   isAlive() {
-    return this.client.isOpen;
+    return this.client.status === 'ready';
   }
 
-  /**
-   * Get a value from Redis by key
-   * @param {string} key - The key to retrieve
-   * @returns {Promise<string|null>} The value associated with the key
-   */
+  async set(key, value, duration) {
+    try {
+      if (duration) {
+        await this.client.set(key, JSON.stringify(value), 'EX', duration);
+      } else {
+        await this.client.set(key, JSON.stringify(value));
+      }
+    } catch (error) {
+      console.error('Error setting value:', error);
+    }
+  }
+
   async get(key) {
     try {
-      const value = await this.client.get(key);
-      return value;
+      const result = await this.client.get(key);
+      return result ? JSON.parse(result) : null;
     } catch (error) {
       console.error('Error getting value:', error);
       return null;
-    }
-  }
-
-  /**
-   * Set a value in Redis with optional expiration
-   * @param {string} key - The key to set
-   * @param {string} value - The value to store
-   * @param {number} duration - Expiration time in seconds
-   * @returns {Promise<boolean>} Success status of the operation
-   */
-  async set(key, value, duration) {
-    try {
-      await this.client.setEx(key, duration, value);
-      return true;
-    } catch (error) {
-      console.error('Error setting value:', error);
-      return false;
-    }
-  }
-
-  /**
-   * Delete a key from Redis
-   * @param {string} key - The key to delete
-   * @returns {Promise<boolean>} Success status of the operation
-   */
-  async del(key) {
-    try {
-      await this.client.del(key);
-      return true;
-    } catch (error) {
-      console.error('Error deleting key:', error);
-      return false;
     }
   }
 }
