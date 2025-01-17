@@ -1,48 +1,55 @@
-import Redis from 'ioredis';
+import redis from 'redis';
 
 class RedisClient {
-  constructor(options = {}) {
-    const defaultOptions = {
-      host: 'localhost',
-      port: 6379,
-      db: 0
-    };
-    
-    this.client = new Redis({
-      ...defaultOptions,
-      ...options
-    });
+  constructor() {
+    this.client = redis.createClient();
 
     this.client.on('error', (err) => {
-      console.error('Redis Client Error:', err);
+      console.error(`Redis client error: ${err.message}`);
     });
   }
 
   isAlive() {
-    return this.client.status === 'ready';
-  }
-
-  async set(key, value, duration) {
-    try {
-      if (duration) {
-        await this.client.set(key, JSON.stringify(value), 'EX', duration);
-      } else {
-        await this.client.set(key, JSON.stringify(value));
-      }
-    } catch (error) {
-      console.error('Error setting value:', error);
-    }
+    return this.client.connected;
   }
 
   async get(key) {
-    try {
-      const result = await this.client.get(key);
-      return result ? JSON.parse(result) : null;
-    } catch (error) {
-      console.error('Error getting value:', error);
-      return null;
-    }
+    return new Promise((resolve, reject) => {
+      this.client.get(key, (err, result) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve(result);
+        }
+      });
+    });
+  }
+
+  async set(key, value, duration) {
+    return new Promise((resolve, reject) => {
+      this.client.setex(key, duration, value, (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
+  }
+
+  async del(key) {
+    return new Promise((resolve, reject) => {
+      this.client.del(key, (err) => {
+        if (err) {
+          reject(err);
+        } else {
+          resolve();
+        }
+      });
+    });
   }
 }
 
-export default new RedisClient();
+const redisClient = new RedisClient();
+export default redisClient;
+
